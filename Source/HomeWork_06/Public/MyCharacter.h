@@ -44,7 +44,16 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "InputAction")
 	UInputAction* IA_Look;
 
-	UFloatingPawnMovement* FloatingMovement;
+	FVector CurrentInput;
+	UPROPERTY(EditAnywhere)
+	float MoveSpeed = 300.f;
+
+	FVector Velocity;
+	UPROPERTY(EditAnywhere)
+	float Gravity = -980.0f; 
+	UPROPERTY(EditAnywhere)
+	bool bIsGrounded = false;
+
 	void Move(const FInputActionValue& value);
 	void Look(const FInputActionValue& value);
 	

@@ -15,6 +15,10 @@ AMyCharacter::AMyCharacter()
 
 	BoxComponent = CreateDefaultSubobject<UBoxComponent>(TEXT("CapsuleComponenet"));
 	RootComponent = BoxComponent;
+	BoxComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+	BoxComponent->SetCollisionObjectType(ECC_Pawn);
+	BoxComponent->SetCollisionResponseToAllChannels(ECR_Block);
+	BoxComponent->SetSimulatePhysics(false);
 
 	SpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("SpringArmComponenet"));
 	SpringArm->SetupAttachment(RootComponent);
@@ -30,7 +34,6 @@ AMyCharacter::AMyCharacter()
 	StaticMeshComponent = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("MeshComponenet"));
 	StaticMeshComponent->SetupAttachment(RootComponent);
 
-	FloatingMovement = CreateDefaultSubobject<UFloatingPawnMovement>(TEXT("MovementComponent"));
 }
 
 // Called when the game starts or when spawned
@@ -53,6 +56,46 @@ void AMyCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
+	if (!CurrentInput.IsNearlyZero())
+	{
+		FHitResult Hit;
+		FVector Delta = CurrentInput * MoveSpeed * DeltaTime;
+		RootComponent->MoveComponent(Delta, RootComponent->GetComponentRotation(), true, &Hit);
+
+		if (Hit.IsValidBlockingHit())
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Hit Actor: %s"), *Hit.GetActor()->GetName());
+		}
+	}
+
+	if (!bIsGrounded)
+	{
+		Velocity.Z += Gravity * DeltaTime;
+	}
+
+	FVector Delta = (CurrentInput * MoveSpeed + FVector(0, 0, Velocity.Z)) * DeltaTime;
+
+	FHitResult Hit;
+	RootComponent->MoveComponent(Delta, RootComponent->GetComponentRotation(), true, &Hit);
+
+	if (Hit.IsValidBlockingHit())
+	{
+		if (Hit.Normal.Z > 0.7f)
+		{
+			bIsGrounded = true;
+			Velocity.Z = 0.0f;
+		}
+		else
+		{
+			bIsGrounded = false;
+		}
+	}
+	else
+	{
+		bIsGrounded = false;
+	}
+
+	CurrentInput = FVector::ZeroVector;
 }
 
 // Called to bind functionality to input
@@ -71,7 +114,6 @@ void AMyCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 void AMyCharacter::Move(const FInputActionValue& value)
 {
 	FVector2D MoveInput = value.Get<FVector2D>();
-	UE_LOG(LogTemp, Warning, TEXT("MoveInput.X = %f"),MoveInput.X);
 	FRotator ControlRotation = Controller->GetControlRotation();
 	FRotator YawRotation(0, ControlRotation.Yaw, 0);
 
@@ -79,6 +121,8 @@ void AMyCharacter::Move(const FInputActionValue& value)
 	FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
 	AddMovementInput(ForwardDirection, MoveInput.X);
 	AddMovementInput(RightDirection, MoveInput.Y);
+
+	CurrentInput = (ForwardDirection * MoveInput.X + RightDirection * MoveInput.Y).GetClampedToMaxSize(1.0f);
 }
 
 void AMyCharacter::Look(const FInputActionValue& value)
